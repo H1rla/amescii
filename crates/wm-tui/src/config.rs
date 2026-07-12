@@ -4,7 +4,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Config {
     #[serde(default)]
     pub startup: Startup,
@@ -58,16 +58,6 @@ impl Default for Refresh {
         Self {
             weather_secs: 600,
             radar_secs: 300,
-        }
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            startup: Startup::default(),
-            sources: Sources::default(),
-            refresh: Refresh::default(),
         }
     }
 }
