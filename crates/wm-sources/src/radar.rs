@@ -150,6 +150,9 @@ impl JmaNowcast {
         let span_x = (px_max - px_min).max(1.0);
         let span_y = (py_max - py_min).max(1.0);
 
+        // タイル取得（ネットワーク）は並列化する。PNG デコードとグリッド書き込みは
+        // grid を可変参照するため、取得完了後に逐次実行する（フレーム間は並列化しない）。
+        let mut futs = Vec::new();
         for ty in nw.y..=se.y {
             for tx in nw.x..=se.x {
                 let url = format!(
@@ -161,50 +164,59 @@ impl JmaNowcast {
                     x = tx,
                     y = ty,
                 );
+                let client = self.client.clone();
+                let cache = self.cache.clone();
+                futs.push(async move {
+                    // キャッシュ優先で取得（同一フレームの再取得を防ぐ）。タイル欠損はスキップ。
+                    let bytes = fetch_cached(&client, &cache, &url).await;
+                    (tx, ty, bytes)
+                });
+            }
+        }
+        let results = futures::future::join_all(futs).await;
 
-                // キャッシュ優先で取得（同一フレームの再取得を防ぐ）。タイル欠損はスキップ。
-                let bytes = match fetch_cached(&self.client, &self.cache, &url).await {
-                    Some(b) => b,
-                    None => continue,
-                };
+        for (tx, ty, bytes) in results {
+            let bytes = match bytes {
+                Some(b) => b,
+                None => continue,
+            };
 
-                // 透明 PNG（無降水域）も正常にデコードできる。
-                let img = match image::load_from_memory(&bytes) {
-                    Ok(i) => i,
-                    Err(_) => continue,
-                };
+            // 透明 PNG（無降水域）も正常にデコードできる。
+            let img = match image::load_from_memory(&bytes) {
+                Ok(i) => i,
+                Err(_) => continue,
+            };
 
-                // このタイルの左上に対応するグローバルピクセル原点。
-                let tile_origin_px = tx as f64 * TILE_SIZE as f64;
-                let tile_origin_py = ty as f64 * TILE_SIZE as f64;
+            // このタイルの左上に対応するグローバルピクセル原点。
+            let tile_origin_px = tx as f64 * TILE_SIZE as f64;
+            let tile_origin_py = ty as f64 * TILE_SIZE as f64;
 
-                let (iw, ih) = img.dimensions();
-                for iy in 0..ih {
-                    for ix in 0..iw {
-                        let p = img.get_pixel(ix, iy);
-                        let [r, g, b, a] = p.0;
-                        if a == 0 {
-                            continue; // 透明＝降水なし
-                        }
-                        let mmh = jma_color_to_precip(r, g, b);
-                        if mmh <= 0.0 {
-                            continue;
-                        }
-                        // このピクセルのグローバル座標 → グリッドセルへ写像。
-                        let gpx = tile_origin_px + ix as f64;
-                        let gpy = tile_origin_py + iy as f64;
-                        if gpx < px_min || gpx > px_max || gpy < py_min || gpy > py_max {
-                            continue; // BBox 範囲外は無視
-                        }
-                        let u = (gpx - px_min) / span_x; // 0..1
-                        let v = (gpy - py_min) / span_y; // 0..1
-                        let cx = ((u * self.grid_w as f64) as u16).min(self.grid_w - 1);
-                        let cy = ((v * self.grid_h as f64) as u16).min(self.grid_h - 1);
-                        // 既存値より大きければ更新（セル内最大降水を代表値に）。
-                        if let Some(cur) = grid.get(cx, cy) {
-                            if mmh > cur {
-                                grid.set(cx, cy, mmh);
-                            }
+            let (iw, ih) = img.dimensions();
+            for iy in 0..ih {
+                for ix in 0..iw {
+                    let p = img.get_pixel(ix, iy);
+                    let [r, g, b, a] = p.0;
+                    if a == 0 {
+                        continue; // 透明＝降水なし
+                    }
+                    let mmh = jma_color_to_precip(r, g, b);
+                    if mmh <= 0.0 {
+                        continue;
+                    }
+                    // このピクセルのグローバル座標 → グリッドセルへ写像。
+                    let gpx = tile_origin_px + ix as f64;
+                    let gpy = tile_origin_py + iy as f64;
+                    if gpx < px_min || gpx > px_max || gpy < py_min || gpy > py_max {
+                        continue; // BBox 範囲外は無視
+                    }
+                    let u = (gpx - px_min) / span_x; // 0..1
+                    let v = (gpy - py_min) / span_y; // 0..1
+                    let cx = ((u * self.grid_w as f64) as u16).min(self.grid_w - 1);
+                    let cy = ((v * self.grid_h as f64) as u16).min(self.grid_h - 1);
+                    // 既存値より大きければ更新（セル内最大降水を代表値に）。
+                    if let Some(cur) = grid.get(cx, cy) {
+                        if mmh > cur {
+                            grid.set(cx, cy, mmh);
                         }
                     }
                 }

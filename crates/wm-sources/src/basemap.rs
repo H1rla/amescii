@@ -51,25 +51,34 @@ impl BaseMapProvider {
     pub async fn fetch_lines(&self, bbox: GeoBBox, zoom: u8) -> Result<Vec<BaseLine>> {
         let (nw, se) = bbox_to_tile_range(&bbox, zoom);
         let want_roads = zoom >= ROADS_MIN_ZOOM;
-        let mut out: Vec<BaseLine> = Vec::new();
 
+        // タイル取得（ネットワーク）は並列化する。デコード・合成は取得後に逐次。
+        let mut futs = Vec::new();
         for ty in nw.y..=se.y {
             for tx in nw.x..=se.x {
                 let url = format!("{BVMAP_BASE}/{zoom}/{tx}/{ty}.pbf");
-                // キャッシュ優先で取得。404/空タイルはスキップ（提供範囲外や海上など）。
-                let bytes = match fetch_cached(&self.client, &self.cache, &url).await {
-                    Some(b) => b,
-                    None => continue,
-                };
-                if bytes.is_empty() {
-                    continue;
-                }
-                let tile = match Tile::decode(&bytes[..]) {
-                    Ok(t) => t,
-                    Err(_) => continue, // 壊れたタイルはスキップ
-                };
-                decode_tile(&tile, zoom, tx, ty, want_roads, &mut out);
+                let client = self.client.clone();
+                let cache = self.cache.clone();
+                futs.push(async move {
+                    // キャッシュ優先で取得。404/空タイルはスキップ（提供範囲外や海上など）。
+                    let bytes = fetch_cached(&client, &cache, &url).await;
+                    (tx, ty, bytes)
+                });
             }
+        }
+        let results = futures::future::join_all(futs).await;
+
+        let mut out: Vec<BaseLine> = Vec::new();
+        for (tx, ty, bytes) in results {
+            let bytes = match bytes {
+                Some(b) if !b.is_empty() => b,
+                _ => continue,
+            };
+            let tile = match Tile::decode(&bytes[..]) {
+                Ok(t) => t,
+                Err(_) => continue, // 壊れたタイルはスキップ
+            };
+            decode_tile(&tile, zoom, tx, ty, want_roads, &mut out);
         }
 
         Ok(out)
@@ -104,25 +113,34 @@ impl BaseMapProvider {
     /// （呼び出しは zoom>=11 のときのみ）。空テキスト・取得不能はスキップ。
     pub async fn fetch_labels_ja(&self, bbox: GeoBBox, zoom: u8) -> Result<Vec<NameLabelJa>> {
         let (nw, se) = bbox_to_tile_range(&bbox, zoom);
-        let mut out: Vec<NameLabelJa> = Vec::new();
 
+        // タイル取得は並列化。デコードは取得後に逐次（fetch_lines と同構造）。
+        let mut futs = Vec::new();
         for ty in nw.y..=se.y {
             for tx in nw.x..=se.x {
                 let url = format!("{BVMAP_BASE}/{zoom}/{tx}/{ty}.pbf");
-                // キャッシュ優先（fetch_lines と同一 URL なので相互ヒットする）。
-                let bytes = match fetch_cached(&self.client, &self.cache, &url).await {
-                    Some(b) => b,
-                    None => continue,
-                };
-                if bytes.is_empty() {
-                    continue;
-                }
-                let tile = match Tile::decode(&bytes[..]) {
-                    Ok(t) => t,
-                    Err(_) => continue,
-                };
-                decode_labels_ja(&tile, zoom, tx, ty, &mut out);
+                let client = self.client.clone();
+                let cache = self.cache.clone();
+                futs.push(async move {
+                    // キャッシュ優先（fetch_lines と同一 URL なので相互ヒットする）。
+                    let bytes = fetch_cached(&client, &cache, &url).await;
+                    (tx, ty, bytes)
+                });
             }
+        }
+        let results = futures::future::join_all(futs).await;
+
+        let mut out: Vec<NameLabelJa> = Vec::new();
+        for (tx, ty, bytes) in results {
+            let bytes = match bytes {
+                Some(b) if !b.is_empty() => b,
+                _ => continue,
+            };
+            let tile = match Tile::decode(&bytes[..]) {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            decode_labels_ja(&tile, zoom, tx, ty, &mut out);
         }
         Ok(out)
     }
