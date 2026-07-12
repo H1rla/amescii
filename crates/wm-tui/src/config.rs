@@ -65,9 +65,9 @@ impl Default for Config {
 }
 
 impl Config {
-    /// 設定ファイルパス（~/.config/weathermap/config.toml）。
+    /// 設定ファイルパス（~/.config/amescii/config.toml）。
     pub fn default_path() -> Option<PathBuf> {
-        directories::ProjectDirs::from("", "", "weathermap")
+        directories::ProjectDirs::from("", "", "amescii")
             .map(|d| d.config_dir().join("config.toml"))
     }
 

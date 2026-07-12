@@ -1,4 +1,4 @@
-//! weathermap エントリポイント。
+//! ameSCII エントリポイント。
 //!
 //! 端末セットアップ → 初回取得 → イベントループ（入力＋取得結果＋再生）→ 後始末。
 //!
@@ -99,7 +99,7 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, cfg: Conf
     let mut app = App::new(cfg.startup.lat, cfg.startup.lon, cfg.startup.zoom);
 
     let http = reqwest::Client::builder()
-        .user_agent("weathermap/0.1 (https://github.com/H1rla/weathermap)")
+        .user_agent("amescii/0.1 (https://github.com/H1rla/amescii)")
         .timeout(Duration::from_secs(15))
         .build()?;
     let owm_key = cfg.sources.owm_api_key.clone();

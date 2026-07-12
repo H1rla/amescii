@@ -11,7 +11,7 @@ members = [
 edition = "2021"
 license = "MIT"
 authors = ["H1rla"]
-repository = "https://github.com/H1rla/weathermap"
+repository = "https://github.com/H1rla/amescii"
 
 [workspace.dependencies]
 heapless = "0.8"

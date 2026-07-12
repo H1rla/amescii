@@ -6,7 +6,7 @@ license.workspace = true
 description = "Ratatui terminal UI: Braille map with truecolor rain radar + multi-source weather sidebar."
 
 [[bin]]
-name = "weathermap"
+name = "amescii"
 path = "src/main.rs"
 
 [dependencies]
