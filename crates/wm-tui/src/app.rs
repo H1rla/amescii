@@ -37,7 +37,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(lat: f64, lon: f64, zoom: u8) -> Self {
+    pub fn new(lat: f64, lon: f64, zoom: u8, show_radar: bool) -> Self {
         Self {
             center_lat: lat,
             center_lon: lon,
@@ -46,7 +46,7 @@ impl App {
             frames: Vec::new(),
             frame_idx: 0,
             playing: false,
-            show_radar: true,
+            show_radar,
             basemap: None,
             name_labels_ja: None,
             status: String::from("起動中..."),

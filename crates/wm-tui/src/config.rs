@@ -19,6 +19,13 @@ pub struct Startup {
     pub lat: f64,
     pub lon: f64,
     pub zoom: u8,
+    /// 起動時に雨雲レイヤを表示するか。false で地図＋地名のみ。
+    #[serde(default = "default_true")]
+    pub show_radar: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Startup {
@@ -28,6 +35,7 @@ impl Default for Startup {
             lat: 35.681,
             lon: 139.767,
             zoom: 8,
+            show_radar: true,
         }
     }
 }

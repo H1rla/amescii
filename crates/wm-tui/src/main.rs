@@ -96,7 +96,12 @@ async fn async_main() -> Result<()> {
 }
 
 async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, cfg: Config) -> Result<()> {
-    let mut app = App::new(cfg.startup.lat, cfg.startup.lon, cfg.startup.zoom);
+    let mut app = App::new(
+        cfg.startup.lat,
+        cfg.startup.lon,
+        cfg.startup.zoom,
+        cfg.startup.show_radar,
+    );
 
     let http = reqwest::Client::builder()
         .user_agent("amescii/0.1 (https://github.com/H1rla/amescii)")

@@ -56,6 +56,7 @@ cargo build --release && ./target/release/amescii
 lat = 35.681
 lon = 139.767
 zoom = 8           # 3..=16（地図は z16 まで精細化。雨雲は z10 上限でオーバーズーム）
+show_radar = true  # false にすると地図のみで起動
 
 [sources]
 owm_api_key = ""   # OpenWeatherMap のみキー必要。空なら JMA + Open-Meteo の2ソース。
