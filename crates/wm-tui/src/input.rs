@@ -8,6 +8,8 @@ pub enum InputAction {
     None,
     /// 天気・レーダーの再取得が必要（パン/ズーム/手動更新）。
     Refetch,
+    /// 現在の中心座標・ズームを設定ファイルへ保存する。
+    SaveConfig,
     Quit,
 }
 
@@ -69,6 +71,9 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
             app.toggle_radar();
             InputAction::None
         }
+
+        // 現在位置をデフォルト起動位置として設定ファイルへ保存。
+        KeyCode::Char('s') => InputAction::SaveConfig,
 
         // 手動更新。
         KeyCode::Char('r') => InputAction::Refetch,

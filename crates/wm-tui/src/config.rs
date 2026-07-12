@@ -1,10 +1,10 @@
 //! 設定の読み込み。起動位置・APIキー・更新間隔。
 
 use anyhow::Result;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
     #[serde(default)]
     pub startup: Startup,
@@ -14,7 +14,7 @@ pub struct Config {
     pub refresh: Refresh,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Startup {
     pub lat: f64,
     pub lon: f64,
@@ -40,14 +40,14 @@ impl Default for Startup {
     }
 }
 
-#[derive(Debug, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Sources {
     /// OpenWeatherMap のみキーが必要。空なら OWM をスキップ。
     #[serde(default)]
     pub owm_api_key: String,
 }
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Refresh {
     pub weather_secs: u64,
     pub radar_secs: u64,
@@ -89,5 +89,18 @@ impl Config {
             }
         }
         Ok(Config::default())
+    }
+
+    /// 現在の設定を TOML ファイルに書き出す。
+    /// ディレクトリが無ければ作成する。
+    pub fn save(&self) -> Result<()> {
+        if let Some(path) = Self::default_path() {
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+            let text = toml::to_string_pretty(self)?;
+            std::fs::write(&path, text)?;
+        }
+        Ok(())
     }
 }

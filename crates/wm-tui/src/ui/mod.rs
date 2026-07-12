@@ -64,7 +64,7 @@ fn render_help(f: &mut Frame, map_area: Rect) {
         return;
     }
     let help = Line::from(vec![Span::styled(
-        " [↑↓←→/hjkl]パン [a/z]ズーム [space]再生 [,/.]コマ送り [t]雨雲 [r]更新 [q]終了 ",
+        " [↑↓←→/hjkl]パン [a/z]ズーム [space]再生 [,/.]コマ送り [t]雨雲 [s]保存 [r]更新 [q]終了 ",
         Style::default().fg(Color::Black).bg(Color::Gray),
     )]);
     // 地図領域の最下行内側に表示。

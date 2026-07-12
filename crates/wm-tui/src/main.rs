@@ -95,7 +95,7 @@ async fn async_main() -> Result<()> {
     res
 }
 
-async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, cfg: Config) -> Result<()> {
+async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut cfg: Config) -> Result<()> {
     let mut app = App::new(
         cfg.startup.lat,
         cfg.startup.lon,
@@ -156,6 +156,16 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, cfg: Conf
             Some(key) = in_rx.recv() => {
                 match handle_key(&mut app, key) {
                     InputAction::Quit => break,
+                    InputAction::SaveConfig => {
+                        // 現在の表示位置を設定へ反映して書き出す。
+                        cfg.startup.lat = app.center_lat;
+                        cfg.startup.lon = app.center_lon;
+                        cfg.startup.zoom = app.zoom;
+                        match cfg.save() {
+                            Ok(()) => app.status = "位置を保存しました".into(),
+                            Err(e) => app.status = format!("保存失敗: {e}"),
+                        }
+                    }
                     InputAction::Refetch => {
                         // 広域へ戻ったら日本語地名は捨てる（描画されないが残骸を残さない）。
                         if app.zoom < JA_LABEL_ZOOM {
