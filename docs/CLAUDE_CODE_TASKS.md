@@ -122,7 +122,7 @@ cargo run   -p wm-tui
 ## 7. ディレクトリ早見
 
 ```
-weathermap/
+amescii/
 ├── Cargo.toml                      workspace
 ├── README.md
 ├── docs/
