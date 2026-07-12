@@ -24,14 +24,15 @@ pub async fn fetch_and_aggregate(
     lat: f64,
     lon: f64,
 ) -> Result<WeatherSnapshot> {
-    // 各プロバイダを順に取得（並列化は呼び出し側で join しても良い）。
+    // 各プロバイダを並列取得（1つの API が遅くても全体を待たせない）。
+    let futs: Vec<_> = providers.iter().map(|p| p.fetch_point(lat, lon)).collect();
+    let results = futures::future::join_all(futs).await;
+
+    // 取得できたソースだけ集約に回す（失敗ソースは欠損扱いで継続）。
     let mut points: Vec<PointMeasurements> = Vec::new();
-    for p in providers.iter() {
-        match p.fetch_point(lat, lon).await {
-            Ok(pm) => points.push(pm),
-            Err(_e) => {
-                // ログは呼び出し側で。ここでは欠損として継続。
-            }
+    for r in results {
+        if let Ok(pm) = r {
+            points.push(pm);
         }
     }
 

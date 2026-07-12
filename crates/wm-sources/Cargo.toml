@@ -22,3 +22,5 @@ geozero = { version = "0.15", default-features = false, features = ["with-mvt"] 
 # タイルキャッシュ用。reqwest の bytes() がそのまま返す型で、Arc 参照カウント
 # のため clone が安価（キャッシュ命中時のコピーを避けられる）。
 bytes = "1"
+# 天気プロバイダ・タイル取得を join_all で並列化するために使用。
+futures = "0.3"
