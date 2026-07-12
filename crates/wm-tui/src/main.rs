@@ -148,8 +148,15 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut cfg: 
     let mut pending_refetch = false;
     let mut last_input = Instant::now();
 
+    // dirty: 変化があったときだけ再描画する。アイドル時（入力も取得結果も
+    // 再生前進も無い）は draw を呼ばず、端末出力と CPU を節約する。
+    let mut dirty = true; // 初回は必ず描画
+
     loop {
-        terminal.draw(|f| ui::draw(f, &mut app))?;
+        if dirty {
+            terminal.draw(|f| ui::draw(f, &mut app))?;
+            dirty = false;
+        }
 
         // 入力・取得結果・再生ティックのいずれかで起床する。どれにもブロックしない。
         tokio::select! {
@@ -178,9 +185,22 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut cfg: 
                     }
                     InputAction::None => {}
                 }
+                // 入力は必ず画面へ反映する（状態やステータス行が変わりうる）。
+                dirty = true;
             }
-            Some(msg) = rx.recv() => apply_msg(&mut app, msg),
-            _ = tokio::time::sleep(TICK) => {}
+            Some(msg) = rx.recv() => {
+                apply_msg(&mut app, msg);
+                dirty = true;
+            }
+            _ = tokio::time::sleep(TICK) => {
+                // 自動再生：一定間隔で 1 コマ前進（末尾→先頭ループ）。前進した
+                // ときだけ再描画する。雨雲 OFF 中は前進させない（隠しているため）。
+                if app.show_radar && app.playing && last_advance.elapsed() >= PLAY_INTERVAL {
+                    app.advance_play();
+                    last_advance = Instant::now();
+                    dirty = true;
+                }
+            }
         }
 
         if app.should_quit {
@@ -188,18 +208,12 @@ async fn run<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mut cfg: 
         }
 
         // デバウンス発火：最後の操作から一定時間が経ったら取得を1回投げる。
+        // 取得結果の Msg 到着時に dirty になるので、ここでは dirty にしない。
         if pending_refetch && last_input.elapsed() >= REFETCH_DEBOUNCE {
             trigger_refetch(&app, &tx, &http, &owm_key, &map_cache, &radar_cache);
             last_weather = Instant::now();
             last_radar = Instant::now();
             pending_refetch = false;
-        }
-
-        // 自動再生：一定間隔で 1 コマ前進（末尾→先頭ループ）。
-        // 雨雲 OFF 中は前進させない（タイムラインを隠しているため）。
-        if app.show_radar && app.playing && last_advance.elapsed() >= PLAY_INTERVAL {
-            app.advance_play();
-            last_advance = Instant::now();
         }
 
         // 定期更新（天気・雨雲）。地図は中心/ズーム変更時のみなのでここでは出さない。
