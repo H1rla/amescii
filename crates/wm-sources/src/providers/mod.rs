@@ -28,13 +28,8 @@ pub async fn fetch_and_aggregate(
     let futs: Vec<_> = providers.iter().map(|p| p.fetch_point(lat, lon)).collect();
     let results = futures::future::join_all(futs).await;
 
-    // 取得できたソースだけ集約に回す（失敗ソースは欠損扱いで継続）。
-    let mut points: Vec<PointMeasurements> = Vec::new();
-    for r in results {
-        if let Ok(pm) = r {
-            points.push(pm);
-        }
-    }
+    // 取得できたソースだけ集約に回す（Err のソースは欠損として捨てる）。
+    let points: Vec<PointMeasurements> = results.into_iter().flatten().collect();
 
     Ok(aggregate_points(&points, now_unix()))
 }
