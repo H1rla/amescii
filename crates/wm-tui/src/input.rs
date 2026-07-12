@@ -38,12 +38,12 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
             InputAction::Refetch
         }
 
-        // ズーム。
-        KeyCode::Char('+') | KeyCode::Char('=') => {
+        // ズーム。MapSCII 互換で a=拡大 / z=縮小。+/- も後方互換で受ける。
+        KeyCode::Char('a') | KeyCode::Char('+') | KeyCode::Char('=') => {
             app.zoom_in();
             InputAction::Refetch
         }
-        KeyCode::Char('-') | KeyCode::Char('_') => {
+        KeyCode::Char('z') | KeyCode::Char('-') | KeyCode::Char('_') => {
             app.zoom_out();
             InputAction::Refetch
         }
