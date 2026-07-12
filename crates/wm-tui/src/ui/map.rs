@@ -27,7 +27,7 @@ impl<'a> Widget for MapWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(" weathermap ");
+            .title(" ameSCII ");
         let inner = block.inner(area);
         block.render(area, buf);
 

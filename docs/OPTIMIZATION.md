@@ -22,7 +22,7 @@ strip = true          # デバッグシンボル除去
 
 ### 確認
 - `cargo build -p wm-tui --release` が通る。
-- ビルド前後で `ls -la target/release/weathermap` のサイズを比較し、縮小していることを記録（README か lessons.md に「最適化前 X MB → 後 Y MB」）。
+- ビルド前後で `ls -la target/release/amescii` のサイズを比較し、縮小していることを記録（README か lessons.md に「最適化前 X MB → 後 Y MB」）。
 - 実起動して全機能が変わらず動く（地図・雨雲・ラベル・t トグル・ズーム・q 復帰）。
 - RISC-V embedded ビルドが引き続き緑（プロファイルは wm-core のロジックに影響しないが念のため確認）。
 
@@ -71,10 +71,10 @@ impl TileCache {
 - スレッド共有が必要なら `Arc<Mutex<TileCache>>` で包む（取得は別 task で走るため）。Mutex のロック時間はタイル 1 枚の get/put だけにして短く保つ。
 
 #### ディスクキャッシュ（地図のみ・任意）
-やるなら地図ベクトルタイルだけ。`directories` crate でキャッシュディレクトリ（例：`~/.cache/weathermap/tiles/bvmap/{z}/{x}/{y}.pbf`）に保存。
+やるなら地図ベクトルタイルだけ。`directories` crate でキャッシュディレクトリ（例：`~/.cache/amescii/tiles/bvmap/{z}/{x}/{y}.pbf`）に保存。
 - get：ファイルがあれば読む。無ければ HTTP→保存。
 - **雨雲はディスクに保存しない**（古いフレームを掴むため）。
-- ディスクキャッシュは「あれば使う、無ければ取る」だけ。無効化（古いタイルの破棄）は、experimental_bvmap が滅多に変わらないので**当面は実装しなくてよい**（必要なら更新日時で TTL を後付け）。ただし「実験提供でデータが変わりうる」ため、キャッシュを消す手段（`~/.cache/weathermap` を消すだけ）を README に一文書いておく。
+- ディスクキャッシュは「あれば使う、無ければ取る」だけ。無効化（古いタイルの破棄）は、experimental_bvmap が滅多に変わらないので**当面は実装しなくてよい**（必要なら更新日時で TTL を後付け）。ただし「実験提供でデータが変わりうる」ため、キャッシュを消す手段（`~/.cache/amescii` を消すだけ）を README に一文書いておく。
 - ディスクキャッシュが面倒・リスクと感じるなら**メモリキャッシュだけで十分**。優先度はメモリ＞ディスク。
 
 ### 取得の重複排除（ズーム連打対策・軽い追加）
