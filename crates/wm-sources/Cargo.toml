@@ -1,0 +1,24 @@
+[package]
+name = "wm-sources"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "std layer: fetches weather APIs (JMA, Open-Meteo, OpenWeatherMap) and JMA nowcast PNG tiles, converts to wm-core types."
+
+[dependencies]
+wm-core = { workspace = true }          # default features (alloc + serde)
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+image = { workspace = true }
+async-trait = "0.1"
+# 地理院ベクトルタイル(MVT/pbf)のデコード。自前 protobuf 実装を避けるため、
+# prost 生成の MVT 構造体を生で公開している geozero を使う（ジオメトリの
+# コマンド列だけ MVT 仕様どおり自前で展開する）。
+geozero = { version = "0.15", default-features = false, features = ["with-mvt"] }
+# タイルキャッシュ用。reqwest の bytes() がそのまま返す型で、Arc 参照カウント
+# のため clone が安価（キャッシュ命中時のコピーを避けられる）。
+bytes = "1"

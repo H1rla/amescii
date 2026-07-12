@@ -1,0 +1,38 @@
+# wm-esp32 — 将来の ESP32-C3 (RISC-V) 移植用スケルトン
+#
+# 本クレートはワークスペースの通常ビルドからは除外されている（ルート Cargo.toml 参照）。
+# 実機ビルドは別ターゲットで行う:
+#   rustup target add riscv32imc-unknown-none-elf
+#   cargo build -p wm-esp32 --target riscv32imc-unknown-none-elf --release
+#
+# ここでは「wm-core が無改変で載る」ことを示す依存設定とスケルトンのみを置く。
+
+[package]
+name = "wm-esp32"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "ESP32-C3 (RISC-V) port skeleton. Reuses wm-core unchanged."
+
+[dependencies]
+# wm-core を no_std + embedded で使う（alloc 無し、グリッド小）。
+wm-core = { path = "../wm-core", default-features = false, features = ["embedded"] }
+
+# --- 実機実装時に有効化する依存（今はコメント）。バージョンは移植時に最新へ。 ---
+# esp-hal              = { version = "0.21", features = ["esp32c3"] }
+# esp-backtrace        = { version = "0.14", features = ["esp32c3", "panic-handler", "println"] }
+# esp-println          = { version = "0.11", features = ["esp32c3"] }
+# esp-wifi             = { version = "0.10", features = ["esp32c3", "wifi"] }
+# embedded-graphics    = "0.8"
+# embedded-hal         = "1.0"
+# serde-json-core      = "0.6"   # ヒープ無し JSON パース（Open-Meteo 用）
+# heapless             = "0.8"
+
+[[bin]]
+name = "wm-esp32"
+path = "src/main.rs"
+
+# 実機ビルドのプロファイル（移植時に調整）。
+[profile.release]
+opt-level = "s"   # サイズ優先
+lto = true

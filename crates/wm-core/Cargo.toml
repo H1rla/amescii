@@ -1,0 +1,27 @@
+[package]
+name = "wm-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Platform-agnostic no_std core: weather aggregation, Braille quantization, colormaps, geo transforms."
+
+[features]
+# PC（wm-tui / wm-sources）はデフォルトで alloc 有効。
+default = ["alloc", "serde"]
+# 動的確保を許可（PC向け）。off だと heapless のみ。
+alloc = []
+# ESP32 向け: グリッド最大寸法を小さくし RAM を節約。
+embedded = []
+# serde 派生を有効化（データモデルの (de)serialize）。
+serde = ["dep:serde"]
+# テスト時のみ std を許可（純粋関数の検証用）。本番ビルドでは付けない。
+std = []
+
+[dependencies]
+heapless = { workspace = true }
+libm = { workspace = true }
+serde = { workspace = true, features = ["derive"], optional = true }
+
+[dev-dependencies]
+# テストは std 環境で走らせる
+wm-core = { path = ".", features = ["std", "alloc"] }

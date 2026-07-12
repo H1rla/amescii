@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/wm-core",
+    "crates/wm-sources",
+    "crates/wm-tui",
+    # "crates/wm-esp32",  # 別ターゲットでビルドするため通常ビルドからは除外
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["H1rla"]
+repository = "https://github.com/H1rla/weathermap"
+
+[workspace.dependencies]
+heapless = "0.8"
+libm = "0.2"
+serde = { version = "1", default-features = false }
+serde_json = "1"
+anyhow = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+ratatui = "0.28"
+crossterm = "0.28"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+# wm-core をワークスペース内 path 依存として参照
+wm-core = { path = "crates/wm-core" }
+wm-sources = { path = "crates/wm-sources" }
+
+# リリースビルド最適化（PC バイナリ向け・公開用の縮小）。
+# wm-esp32 は別ワークスペース扱い（自身の [profile.release] を持つ）なので衝突しない。
+[profile.release]
+opt-level = "z"     # サイズ優先
+lto = true          # リンク時最適化（重複コード除去）
+codegen-units = 1   # 最適化を最大化（ビルドは遅いが小さい/速い）
+strip = true        # デバッグシンボル除去
+# panic = "abort" は入れない：panic hook で端末（raw mode/代替画面）を復帰させているため。
+# abort だと hook が走らず端末が壊れた状態で残る経路ができる。サイズより端末復帰を優先。
