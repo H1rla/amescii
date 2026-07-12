@@ -29,11 +29,11 @@ const ROWS: u16 = 24;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let http = reqwest::Client::builder()
-        .user_agent("weathermap-smoke/0.1 (https://github.com/H1rla/weathermap)")
+        .user_agent("amescii-smoke/0.1 (https://github.com/H1rla/amescii)")
         .timeout(Duration::from_secs(20))
         .build()?;
 
-    println!("== weathermap 結合スモークテスト ==");
+    println!("== amescii 結合スモークテスト ==");
     println!("中心 {LAT:.3}N {LON:.3}E  zoom={ZOOM}  領域 {COLS}x{ROWS} セル\n");
 
     fetch_weather(&http).await;

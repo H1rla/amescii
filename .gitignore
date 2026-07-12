@@ -3,3 +3,5 @@
 Cargo.lock
 .DS_Store
 *.swp
+# 開発メモ（ローカル保持・リポジトリには含めない）
+/lessons.md
