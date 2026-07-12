@@ -16,21 +16,25 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> InputAction {
         KeyCode::Char('q') => InputAction::Quit,
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => InputAction::Quit,
 
-        // パン（表示幅の 20% ずつ）。
+        // パン（表示幅に対する割合。ズームに応じて自動調整）。
         KeyCode::Up | KeyCode::Char('k') => {
-            app.pan(0.2, 0.0);
+            let f = app.pan_fraction();
+            app.pan(f, 0.0);
             InputAction::Refetch
         }
         KeyCode::Down | KeyCode::Char('j') => {
-            app.pan(-0.2, 0.0);
+            let f = app.pan_fraction();
+            app.pan(-f, 0.0);
             InputAction::Refetch
         }
         KeyCode::Left | KeyCode::Char('h') => {
-            app.pan(0.0, -0.2);
+            let f = app.pan_fraction();
+            app.pan(0.0, -f);
             InputAction::Refetch
         }
         KeyCode::Right | KeyCode::Char('l') => {
-            app.pan(0.0, 0.2);
+            let f = app.pan_fraction();
+            app.pan(0.0, f);
             InputAction::Refetch
         }
 

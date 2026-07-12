@@ -137,6 +137,17 @@ impl App {
         )
     }
 
+    /// ズームに応じたパン幅（表示幅に対する割合）。
+    /// 広域は一歩が大きくなりすぎ、拡大は小さくなりすぎるのを避けるため段階調整。
+    pub fn pan_fraction(&self) -> f64 {
+        match self.zoom {
+            0..=5 => 0.10,
+            6..=9 => 0.20,
+            10..=13 => 0.30,
+            _ => 0.40,
+        }
+    }
+
     /// パン（方向キー）。ステップは表示幅の一定割合。
     pub fn pan(&mut self, d_lat_frac: f64, d_lon_frac: f64) {
         let bbox = self.current_bbox();
