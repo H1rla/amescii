@@ -12,8 +12,15 @@
 //!   **ディスクには永続化しない**（メモリのみ。古い雨雲を掴むリスク回避）。
 
 use bytes::Bytes;
+use directories::ProjectDirs;
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
+
+/// 地図タイルのディスクキャッシュ有効期限。experimental_bvmap はほぼ不変だが、
+/// 実験提供でまれに更新されうるので 7 日で期限切れにする。
+const DISK_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 /// 複数の取得 task から共有するためのハンドル。
 ///
@@ -140,6 +147,105 @@ pub async fn fetch_cached(
         }
     }
     Some(bytes)
+}
+
+/// `fetch_cached` のディスクキャッシュ付き版（**地図タイル専用**）。
+///
+/// メモリ miss → ディスク（TTL 内なら採用しメモリへ昇格）→ HTTP の3段。
+/// 取得成功（2xx かつ非空）時はメモリとディスクの両方へ書く。
+/// **雨雲タイルには使わない**：URL に basetime/validtime が入るため、
+/// ディスクへ残すと古いフレームを掴む恐れがある（雨雲はメモリのみの `fetch_cached`）。
+pub async fn fetch_cached_with_disk(
+    client: &reqwest::Client,
+    cache: &SharedCache,
+    url: &str,
+) -> Option<Bytes> {
+    // 1. メモリ参照（ロックは get の間だけ。汚染時は素通し）。
+    if let Ok(mut c) = cache.lock() {
+        if let Some(b) = c.get(url) {
+            c.record_hit();
+            return Some(b);
+        }
+        c.record_miss();
+    }
+
+    // 2. ディスク参照（TTL 内なら採用し、メモリへ昇格）。
+    let disk_path = disk_cache_path(url);
+    if let Some(path) = disk_path.as_ref() {
+        if let Some(b) = read_disk_if_fresh(path).await {
+            if let Ok(mut c) = cache.lock() {
+                c.put(url.to_string(), b.clone());
+            }
+            return Some(b);
+        }
+    }
+
+    // 3. HTTP 取得。成功＆非空のみメモリ＋ディスクへ書く（欠損は固定しない）。
+    let resp = client.get(url).send().await.ok()?;
+    let ok = resp.status().is_success();
+    let bytes = resp.bytes().await.ok()?;
+    if ok && !bytes.is_empty() {
+        if let Ok(mut c) = cache.lock() {
+            c.put(url.to_string(), bytes.clone());
+        }
+        if let Some(path) = disk_path.as_ref() {
+            write_disk(path, &bytes).await; // ベストエフォート（失敗は無視）
+        }
+    }
+    Some(bytes)
+}
+
+/// タイル URL からディスクキャッシュのパスを導く。
+///
+/// `~/.cache/amescii/tiles/{z}/{x}/{y}.pbf`。URL 末尾3セグメント（z/x/y.ext）を使う。
+/// ProjectDirs が引けない・想定外セグメント（非英数・`..` 等）の場合は `None`
+/// を返し、ディスク層をスキップする（パストラバーサル防止）。
+fn disk_cache_path(url: &str) -> Option<PathBuf> {
+    let root = ProjectDirs::from("", "", "amescii")?.cache_dir().join("tiles");
+    // rsplit なので取り出し順は [y.ext, x, z]。
+    let tail: Vec<&str> = url.rsplit('/').take(3).collect();
+    if tail.len() < 3 {
+        return None;
+    }
+    let (y_ext, x, z) = (tail[0], tail[1], tail[2]);
+    if !safe_seg(z) || !safe_seg(x) || !safe_seg(y_ext) {
+        return None;
+    }
+    Some(root.join(z).join(x).join(y_ext))
+}
+
+/// パスセグメントとして安全か（英数と `.` のみ、`..` を含まない、空でない）。
+fn safe_seg(s: &str) -> bool {
+    !s.is_empty()
+        && !s.contains("..")
+        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.')
+}
+
+/// ディスクキャッシュを TTL 内なら読む。無効・期限切れ・失敗は `None`。
+async fn read_disk_if_fresh(path: &Path) -> Option<Bytes> {
+    let meta = tokio::fs::metadata(path).await.ok()?;
+    let modified = meta.modified().ok()?;
+    // 経過時間が TTL 超（または mtime が未来）なら期限切れ扱い。
+    match SystemTime::now().duration_since(modified) {
+        Ok(age) if age <= DISK_TTL => {}
+        _ => return None,
+    }
+    let data = tokio::fs::read(path).await.ok()?;
+    if data.is_empty() {
+        None
+    } else {
+        Some(Bytes::from(data))
+    }
+}
+
+/// ディスクキャッシュへ書く（ベストエフォート。親ディレクトリを作成）。
+async fn write_disk(path: &Path, bytes: &Bytes) {
+    if let Some(dir) = path.parent() {
+        if tokio::fs::create_dir_all(dir).await.is_err() {
+            return;
+        }
+    }
+    let _ = tokio::fs::write(path, bytes).await;
 }
 
 #[cfg(test)]

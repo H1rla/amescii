@@ -9,7 +9,7 @@
 //! ジオメトリのコマンド列（MoveTo/LineTo/ClosePath + zigzag）だけ MVT 仕様
 //! どおりに自前展開する。自前 protobuf 実装はしない（罠が多く本題から逸れる）。
 
-use crate::cache::{fetch_cached, SharedCache};
+use crate::cache::{fetch_cached_with_disk, SharedCache};
 use crate::error::Result;
 use geozero::mvt::tile::{Feature, Layer};
 use geozero::mvt::{Message, Tile};
@@ -60,8 +60,9 @@ impl BaseMapProvider {
                 let client = self.client.clone();
                 let cache = self.cache.clone();
                 futs.push(async move {
-                    // キャッシュ優先で取得。404/空タイルはスキップ（提供範囲外や海上など）。
-                    let bytes = fetch_cached(&client, &cache, &url).await;
+                    // メモリ→ディスク→HTTP。地図タイルはほぼ不変なのでディスクへ永続化。
+                    // 404/空タイルはスキップ（提供範囲外や海上など）。
+                    let bytes = fetch_cached_with_disk(&client, &cache, &url).await;
                     (tx, ty, bytes)
                 });
             }
@@ -122,8 +123,8 @@ impl BaseMapProvider {
                 let client = self.client.clone();
                 let cache = self.cache.clone();
                 futs.push(async move {
-                    // キャッシュ優先（fetch_lines と同一 URL なので相互ヒットする）。
-                    let bytes = fetch_cached(&client, &cache, &url).await;
+                    // fetch_lines と同一 URL・同一ディスクキャッシュを共有（相互ヒット）。
+                    let bytes = fetch_cached_with_disk(&client, &cache, &url).await;
                     (tx, ty, bytes)
                 });
             }
