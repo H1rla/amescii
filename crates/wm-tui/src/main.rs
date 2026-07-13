@@ -246,7 +246,8 @@ fn apply_msg(app: &mut App, msg: Msg) {
         }
         Msg::Radar(Err(e)) => app.status = format!("雨雲取得失敗: {e}"),
         Msg::Basemap(Ok(lines)) => {
-            app.basemap = Some(lines);
+            // set_basemap が版数を上げる＝地図線の描画キャッシュが無効化される。
+            app.set_basemap(lines);
             app.status = "地図更新済み".into();
         }
         Msg::Basemap(Err(e)) => app.status = format!("地図取得失敗: {e}"),

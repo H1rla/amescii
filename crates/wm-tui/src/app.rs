@@ -1,9 +1,39 @@
 //! アプリ状態。中心座標・ズーム・最新スナップショット・最新グリッド。
 
 use wm_core::geo::GeoBBox;
+use wm_core::render::DrawCell;
 use wm_core::WeatherSnapshot;
 use wm_sources::basemap::{BaseLine, NameLabelJa};
 use wm_sources::radar::RadarFrame;
+
+/// 地図線キャッシュのキー。
+/// `(basemap_version, 中心緯度bits, 中心経度bits, zoom, cols, rows)`。
+///
+/// `rasterize_lines` の入力すべてを表す：データ（版数）・BBox（中心+zoom+セル数から
+/// 導出）・出力セル数。中心座標を `f64::to_bits` で持つのは、キーを `Eq` 比較可能に
+/// するため。**パンでは版数が上がらない**（データは同じで投影だけ変わる）ので、
+/// 中心をキーに含めないとパン中に地図線が固まる。
+pub type BasemapKey = (u64, u64, u64, u8, u16, u16);
+
+/// 雨雲キャッシュのキー。`(radar_version, frame_idx, cols, rows)`。
+///
+/// `quantize` の入力は「グリッド（＝版数＋コマ）」と「出力セル数」だけで、
+/// BBox を取らない（グリッド自身が取得時の地理範囲を保持する）。だから
+/// パンしても再量子化は不要＝キーに中心座標を含めない。
+pub type RadarKey = (u64, usize, u16, u16);
+
+/// 描画計算のキャッシュ。入力キーが変わったときだけ再計算する。
+///
+/// `rasterize_lines` / `quantize` は純粋関数なので、入力が同じなら結果も同じ。
+/// 地図線と雨雲でキーを分けてあるのが要点で、再生中（`frame_idx` が 500ms ごとに
+/// 変わる）でも地図線のキーは動かず、地図線の再計算は起きない。
+#[derive(Default)]
+pub struct RenderCache {
+    pub basemap_key: Option<BasemapKey>,
+    pub basemap_cells: Vec<DrawCell>,
+    pub radar_key: Option<RadarKey>,
+    pub radar_cells: Vec<DrawCell>,
+}
 
 pub struct App {
     /// 地図中心。
@@ -25,6 +55,14 @@ pub struct App {
     pub basemap: Option<Vec<BaseLine>>,
     /// 拡大時の日本語地名（地理院 label 由来）。zoom>=JA_LABEL_ZOOM のときだけ取得。
     pub name_labels_ja: Option<Vec<NameLabelJa>>,
+
+    /// `basemap` の版数。`set_basemap` のたびに +1。
+    /// 描画キャッシュはこれでデータ更新を検知する（Vec の中身は比較しない）。
+    pub basemap_version: u64,
+    /// `frames` の版数。`set_frames` のたびに +1。
+    pub radar_version: u64,
+    /// 地図線・雨雲の描画結果キャッシュ（`map.rs` の render が読み書きする）。
+    pub render_cache: RenderCache,
 
     /// ステータス行に出す短いメッセージ。
     pub status: String,
@@ -49,6 +87,9 @@ impl App {
             show_radar,
             basemap: None,
             name_labels_ja: None,
+            basemap_version: 0,
+            radar_version: 0,
+            render_cache: RenderCache::default(),
             status: String::from("起動中..."),
             should_quit: false,
             map_cols: 80,
@@ -61,12 +102,40 @@ impl App {
         self.frames.get(self.frame_idx)
     }
 
+    /// 地図線キャッシュのキー（`cols`/`rows` は描画先セル数）。
+    pub fn basemap_key(&self, cols: u16, rows: u16) -> BasemapKey {
+        (
+            self.basemap_version,
+            self.center_lat.to_bits(),
+            self.center_lon.to_bits(),
+            self.zoom,
+            cols,
+            rows,
+        )
+    }
+
+    /// 雨雲キャッシュのキー（`cols`/`rows` は描画先セル数）。
+    pub fn radar_key(&self, cols: u16, rows: u16) -> RadarKey {
+        (self.radar_version, self.frame_idx, cols, rows)
+    }
+
+    /// 新しい地図ベース層を差し込む。版数を上げて描画キャッシュを無効化する。
+    ///
+    /// 版数の更新をデータの更新と同じ場所に置くことで、取り違え（データだけ差し替えて
+    /// キャッシュが古いまま）を防ぐ。
+    pub fn set_basemap(&mut self, lines: Vec<BaseLine>) {
+        self.basemap = Some(lines);
+        self.basemap_version += 1;
+    }
+
     /// 新しいタイムラインを差し込む。表示位置は「現在（最新の実況）」に合わせる。
     ///
     /// 取得直後は最新の実況コマを見せたいので、`frame_idx` を最後の実況コマへ。
-    /// 予報が無ければ末尾。再生状態は維持する。
+    /// 予報が無ければ末尾。再生状態は維持する。版数を上げて雨雲キャッシュを無効化する
+    /// （コマ数が同じでも中身は別データなので `frame_idx` だけでは検知できない）。
     pub fn set_frames(&mut self, frames: Vec<RadarFrame>) {
         self.frames = frames;
+        self.radar_version += 1;
         if self.frames.is_empty() {
             self.frame_idx = 0;
             return;

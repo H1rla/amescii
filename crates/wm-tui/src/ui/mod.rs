@@ -43,7 +43,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     app.map_cols = map_area.width.saturating_sub(2);
     app.map_rows = map_area.height.saturating_sub(2);
 
-    f.render_widget(map::MapWidget { app }, map_area);
+    // MapWidget は描画キャッシュ（App.render_cache）を更新するので &mut で渡す。
+    // 明示的な再借用にして、後続のウィジェットが app を読めるようにする。
+    f.render_widget(map::MapWidget { app: &mut *app }, map_area);
     // 機能B：雨雲 OFF のときはタイムラインバーも隠す（行は空けるだけ）。
     if app.show_radar {
         f.render_widget(timeline::Timeline { app }, timeline_area);
