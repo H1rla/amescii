@@ -21,6 +21,9 @@ std = []
 heapless = { workspace = true }
 libm = { workspace = true }
 serde = { workspace = true, features = ["derive"], optional = true }
+# ラベルの端末表示幅（全角=2セル）。no_std 維持のため default-features = false
+# （既定の "cjk" は Ambiguous 幅のみに効く。漢字・かなは East Asian Wide で常に幅2）。
+unicode-width = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 # テストは std 環境で走らせる

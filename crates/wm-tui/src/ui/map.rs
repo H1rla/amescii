@@ -106,8 +106,9 @@ impl<'a> Widget for MapWidget<'a> {
         }
 
         // 合成順序 ④地名ラベル（雨雲・地図の上＝場所を見失わないため）。
-        //   zoom < 11：内蔵英語都市（places::layout_city_labels）。
+        //   zoom < 11：内蔵都市テーブル（places::layout_city_labels）。日本語名。
         //   zoom >= 11：地理院 label の日本語地名（annoChar/knj）を間引いて描画。
+        // どちらも全角なので描画は draw_label_text（set_stringn 委譲）で共通。
         let bbox = self.app.current_bbox();
         if self.app.zoom >= JA_LABEL_ZOOM {
             if let Some(labels) = &self.app.name_labels_ja {
@@ -116,7 +117,7 @@ impl<'a> Widget for MapWidget<'a> {
         } else {
             let labels = layout_city_labels(&bbox, self.app.zoom, inner.width, inner.height);
             for l in labels.iter() {
-                draw_label(buf, inner, l.marker_col, l.row, l.name);
+                draw_label_text(buf, inner, l.marker_col, l.row, l.name);
             }
         }
     }
@@ -165,6 +166,7 @@ fn ja_overlaps(placed: &[(u16, u16, u16)], col: u16, row: u16, span: u16) -> boo
 }
 
 /// マーカー `·` ＋ 空白 ＋ テキストを 1 行に書く（全角は ratatui が幅2で扱う）。
+/// 内蔵都市・地理院地名の両方で共用する。
 /// 黒背景＋白文字で地図・雨雲の上でも読めるようにし、右端はクリップ。
 fn draw_label_text(buf: &mut Buffer, inner: Rect, col: u16, row: u16, text: &str) {
     let y = inner.top() + row;
@@ -179,37 +181,6 @@ fn draw_label_text(buf: &mut Buffer, inner: Rect, col: u16, row: u16, text: &str
     let s = format!("· {text}");
     let style = Style::default().fg(Color::White).bg(Color::Black);
     buf.set_stringn(mx, y, s, max_w, style);
-}
-
-/// 地名ラベルを 1 件描く：マーカー `·` ＋ 空白 ＋ 名前。
-///
-/// 地図線・雨雲の上に重ねるので、背景を 1 段暗く（黒）して白文字で可読性を確保する。
-/// 右端を超える分はクリップ。座標はマップ内側領域 `inner` 基準のセル (marker_col,row)。
-fn draw_label(buf: &mut Buffer, inner: Rect, marker_col: u16, row: u16, name: &str) {
-    let y = inner.top() + row;
-    if y >= inner.bottom() {
-        return;
-    }
-    // マーカー。
-    let mx = inner.left() + marker_col;
-    if mx < inner.right() {
-        let cell = &mut buf[(mx, y)];
-        cell.set_char('·');
-        cell.set_fg(Color::White);
-        cell.set_bg(Color::Black);
-    }
-    // 名前（マーカーの 2 セル右から）。ASCII 前提で 1 文字 1 セル。
-    let start = marker_col + 2;
-    for (i, ch) in name.chars().enumerate() {
-        let x = inner.left() + start + i as u16;
-        if x >= inner.right() {
-            break; // 右端クリップ
-        }
-        let cell = &mut buf[(x, y)];
-        cell.set_char(ch);
-        cell.set_fg(Color::White);
-        cell.set_bg(Color::Black);
-    }
 }
 
 /// 地図レイヤ種別 → 色（暗めにして雨雲を引き立てる）。MAP_AND_TIMELINE.md §色 準拠。
